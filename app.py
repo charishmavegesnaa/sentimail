@@ -1,111 +1,85 @@
 import streamlit as st
-import pandas as pd
 import joblib
-import numpy as np
+import os
 
-# ---------------- PAGE CONFIG ----------------
+# ---------------- CONFIG ----------------
 st.set_page_config(
-    page_title="Email Sentiment Data",
+    page_title="Email Sentiment Predictor",
     page_icon="📧",
-    layout="wide"
+    layout="centered"
 )
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------- LOAD MODEL ----------------
 @st.cache_resource
 def load_model():
-    return joblib.load("senti_logreg_model.pkl")
+    return joblib.load(os.path.join(BASE_DIR, "senti_logreg_model.pkl"))
 
 model = load_model()
 
-# ---------------- LOAD DATA ----------------
-@st.cache_data
-def load_data():
-    return pd.read_csv("Email_Sentiment_Data.csv")
+# ---------------- UI ----------------
+st.markdown("""
+<style>
+body {
+    background-color: #0e1117;
+}
+.big-title {
+    font-size: 40px;
+    font-weight: bold;
+}
+.subtitle {
+    font-size: 18px;
+    color: #b3b3b3;
+}
+.result-box {
+    padding: 20px;
+    border-radius: 12px;
+    margin-top: 20px;
+    font-size: 22px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-df = load_data()
+st.markdown("<div class='big-title'>📧 Email Sentiment Analysis</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Type an email and instantly understand its sentiment</div>", unsafe_allow_html=True)
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("📌 Menu")
-page = st.sidebar.radio(
-    "Navigate",
-    ["🏠 Home", "📊 Dataset", "✍️ Predict", "📈 Model Details"]
+st.write("")
+
+email_text = st.text_area(
+    "✍️ Enter Email Content",
+    height=180,
+    placeholder="Example: Thank you for your quick response. I really appreciate your support."
 )
 
-# ---------------- HOME ----------------
-if page == "🏠 Home":
-    st.title("📧 Email Sentiment Data")
-    st.markdown("""
-    ### Interactive Email Sentiment Analysis App
-    - Uses trained ML model
-    - Clean & balanced dataset
-    - Real-time sentiment prediction
-    """)
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Emails", len(df))
-    col2.metric("Unique Senders", df["From Name"].nunique())
-    col3.metric("Sentiment Classes", df["Sentiment"].nunique())
-
-    st.success("✅ Application loaded successfully")
-
-# ---------------- DATASET ----------------
-elif page == "📊 Dataset":
-    st.title("📊 Email Sentiment Dataset")
-
-    st.subheader("Dataset Preview")
-    st.dataframe(df.head(25), use_container_width=True)
-
-    st.subheader("Sentiment Distribution")
-    st.bar_chart(df["Sentiment"].value_counts())
-
-    st.subheader("Filter by Sentiment")
-    sentiment = st.selectbox(
-        "Choose sentiment",
-        ["All"] + list(df["Sentiment"].unique())
-    )
-
-    if sentiment != "All":
-        st.dataframe(
-            df[df["Sentiment"] == sentiment],
-            use_container_width=True
-        )
-
 # ---------------- PREDICTION ----------------
-elif page == "✍️ Predict":
-    st.title("✍️ Predict Email Sentiment")
+if st.button("🔍 Analyze Sentiment"):
+    if email_text.strip() == "":
+        st.warning("⚠️ Please enter some email content.")
+    else:
+        try:
+            prediction = model.predict([email_text])[0].lower()
 
-    email_text = st.text_area(
-        "Enter email content",
-        height=180,
-        placeholder="Type or paste email text here..."
-    )
+            if prediction == "positive":
+                st.markdown(
+                    "<div class='result-box' style='background-color:#0f5132;color:#d1e7dd;'>😊 POSITIVE SENTIMENT</div>",
+                    unsafe_allow_html=True
+                )
+                st.info("💡 **Suggestion:** Keep the tone friendly and appreciative. This email builds positive communication.")
 
-    if st.button("🔍 Predict Sentiment"):
-        if email_text.strip() == "":
-            st.warning("Please enter email text")
-        else:
-            result = model.predict([email_text])[0]
+            elif prediction == "negative":
+                st.markdown(
+                    "<div class='result-box' style='background-color:#842029;color:#f8d7da;'>😞 NEGATIVE SENTIMENT</div>",
+                    unsafe_allow_html=True
+                )
+                st.warning("💡 **Suggestion:** Consider softening the language, adding polite phrases, or clarifying intent.")
 
-            if result.lower() == "positive":
-                st.success("😊 POSITIVE sentiment")
-            elif result.lower() == "negative":
-                st.error("😞 NEGATIVE sentiment")
             else:
-                st.info("😐 NEUTRAL sentiment")
+                st.markdown(
+                    "<div class='result-box' style='background-color:#41464b;color:#e2e3e5;'>😐 NEUTRAL SENTIMENT</div>",
+                    unsafe_allow_html=True
+                )
+                st.info("💡 **Suggestion:** You may add warmth or clarity depending on the context.")
 
-# ---------------- MODEL DETAILS ----------------
-elif page == "📈 Model Details":
-    st.title("📈 Model Details")
-
-    st.markdown("""
-    **Model File:** `senti_logreg_model.pkl`  
-    **Dataset:** `Email_Sentiment_Data.csv`  
-
-    ### Key Points
-    - Logistic Regression model
-    - Trained on balanced dataset
-    - Suitable for academic & demo purposes
-    - Fast and interpretable
-    """)
-
-    st.success("Model ready for predictions 🚀")
+        except Exception as e:
+            st.error("❌ Prediction failed. Please check model compatibility.")
