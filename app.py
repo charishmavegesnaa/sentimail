@@ -1,85 +1,125 @@
 import streamlit as st
-import joblib
-import os
-
-# ---------------- CONFIG ----------------
-st.set_page_config(
-    page_title="Email Sentiment Predictor",
-    page_icon="📧",
-    layout="centered"
-)
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+import pickle
+import re
+import nltk
+import string
 
 # ---------------- LOAD MODEL ----------------
-@st.cache_resource
-def load_model():
-    return joblib.load(os.path.join(BASE_DIR, "senti_logreg_model.pkl"))
+with open("senti_logreg_model.pkl", "rb") as file:
+    data = pickle.load(file)
 
-model = load_model()
+model = data['model']
+vectorizer = data['vectorizer']
 
-# ---------------- UI ----------------
-st.markdown("""
-<style>
-body {
-    background-color: #0e1117;
-}
-.big-title {
-    font-size: 40px;
-    font-weight: bold;
-}
-.subtitle {
-    font-size: 18px;
-    color: #b3b3b3;
-}
-.result-box {
-    padding: 20px;
-    border-radius: 12px;
-    margin-top: 20px;
-    font-size: 22px;
-}
-</style>
-""", unsafe_allow_html=True)
+# ---------------- SAME FUNCTIONS FROM IPYNB ----------------
+def clean_text(text):
+    text = text.lower()
+    return text.strip()
 
-st.markdown("<div class='big-title'>📧 Email Sentiment Analysis</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>Type an email and instantly understand its sentiment</div>", unsafe_allow_html=True)
+def remove_punctuation(text):
+    punctuationfree = "".join([i for i in text if i not in string.punctuation])
+    return punctuationfree
 
-st.write("")
+stopwords = nltk.corpus.stopwords.words('english')
 
-email_text = st.text_area(
-    "✍️ Enter Email Content",
-    height=180,
-    placeholder="Example: Thank you for your quick response. I really appreciate your support."
-)
+def remove_stopwords(text):
+    output = " ".join(i for i in text.split() if i not in stopwords)
+    return output
 
-# ---------------- PREDICTION ----------------
-if st.button("🔍 Analyze Sentiment"):
-    if email_text.strip() == "":
-        st.warning("⚠️ Please enter some email content.")
+def remove_digits(text):
+    clean_text = re.sub(r"\b[0-9]+\b\s*", "", text)
+    return clean_text
+
+def remove_emojis(data):
+    emoji_pattern = re.compile("["
+        u"\U0001F600-\U0001F64F"
+        u"\U0001F300-\U0001F5FF"
+        u"\U0001F680-\U0001F6FF"
+        u"\U0001F1E0-\U0001F1FF"
+        "]+", flags=re.UNICODE)
+    return re.sub(emoji_pattern, '', data)
+
+# ---------------- PIPELINE (SAME LOGIC) ----------------
+def preprocess_email(text):
+    text = clean_text(text)
+    text = remove_punctuation(text)
+    text = remove_stopwords(text)
+    text = remove_digits(text)
+    text = remove_emojis(text)
+    return text
+
+# ---------------- SENTIMENT LABEL ----------------
+def get_sentiment_label(value):
+    if value == -1:
+        return "Negative 😟"
+    elif value == 0:
+        return "Neutral 😐"
     else:
-        try:
-            prediction = model.predict([email_text])[0].lower()
+        return "Positive 😊"
 
-            if prediction == "positive":
-                st.markdown(
-                    "<div class='result-box' style='background-color:#0f5132;color:#d1e7dd;'>😊 POSITIVE SENTIMENT</div>",
-                    unsafe_allow_html=True
-                )
-                st.info("💡 **Suggestion:** Keep the tone friendly and appreciative. This email builds positive communication.")
+# ---------------- CLARITY CHECK (ABSTRACT BASED) ----------------
+def clarity_check(text):
+    if len(text.split()) < 6:
+        return "Low ❌", "Email is too short and unclear."
+    elif text.count('.') == 0:
+        return "Medium ⚠️", "Try adding punctuation for better clarity."
+    else:
+        return "Good ✅", "Email is clear."
 
-            elif prediction == "negative":
-                st.markdown(
-                    "<div class='result-box' style='background-color:#842029;color:#f8d7da;'>😞 NEGATIVE SENTIMENT</div>",
-                    unsafe_allow_html=True
-                )
-                st.warning("💡 **Suggestion:** Consider softening the language, adding polite phrases, or clarifying intent.")
+# ---------------- SUGGESTIONS ----------------
+def suggestion(sentiment):
+    if sentiment == "Negative 😟":
+        return "Try using polite words like 'please', 'kindly', or 'could you'."
+    elif sentiment == "Neutral 😐":
+        return "You can improve the tone by adding a friendly closing line."
+    else:
+        return "Your email sounds polite and professional."
 
-            else:
-                st.markdown(
-                    "<div class='result-box' style='background-color:#41464b;color:#e2e3e5;'>😐 NEUTRAL SENTIMENT</div>",
-                    unsafe_allow_html=True
-                )
-                st.info("💡 **Suggestion:** You may add warmth or clarity depending on the context.")
+# ---------------- SESSION TRACKING ----------------
+if "negative_count" not in st.session_state:
+    st.session_state.negative_count = 0
 
-        except Exception as e:
-            st.error("❌ Prediction failed. Please check model compatibility.")
+if "unclear_count" not in st.session_state:
+    st.session_state.unclear_count = 0
+
+# ---------------- STREAMLIT UI ----------------
+st.set_page_config(page_title="SentiMail", page_icon="📧")
+
+st.title("📧 SentiMail – Where Emotions Meet Emails")
+st.write("Analyze email sentiment, clarity, and improve communication.")
+
+email_text = st.text_area("✉️ Enter Email Content", height=180)
+
+if st.button("Analyze Email"):
+    if email_text.strip() == "":
+        st.warning("Please enter an email message.")
+    else:
+        processed_text = preprocess_email(email_text)
+        vectorized_text = vectorizer.transform([processed_text])
+        prediction = model.predict(vectorized_text)[0]
+
+        sentiment = get_sentiment_label(prediction)
+        clarity, clarity_msg = clarity_check(email_text)
+        advice = suggestion(sentiment)
+
+        # Update stats
+        if prediction == -1:
+            st.session_state.negative_count += 1
+        if clarity.startswith("Low"):
+            st.session_state.unclear_count += 1
+
+        # ---------------- OUTPUT ----------------
+        st.subheader("🔍 Analysis Result")
+        st.write(f"**Sentiment:** {sentiment}")
+        st.write(f"**Clarity Level:** {clarity}")
+        st.info(clarity_msg)
+
+        st.subheader("💡 Improvement Suggestion")
+        st.success(advice)
+
+        st.subheader("📊 User Communication Stats")
+        st.write(f"😟 Negative Emails: {st.session_state.negative_count}")
+        st.write(f"❓ Unclear Emails: {st.session_state.unclear_count}")
+
+st.markdown("---")
+st.caption("Mini Project | SentiMail | CSE")
