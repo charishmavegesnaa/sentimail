@@ -4,6 +4,10 @@ import re
 import nltk
 import string
 
+# ✅ ONLY FIX ADDED (DO NOT REMOVE)
+nltk.download('stopwords')
+nltk.download('punkt')
+
 # ---------------- LOAD MODEL ----------------
 with open("senti_logreg_model.pkl", "rb") as file:
     data = pickle.load(file)
@@ -11,7 +15,7 @@ with open("senti_logreg_model.pkl", "rb") as file:
 model = data['model']
 vectorizer = data['vectorizer']
 
-# ---------------- SAME FUNCTIONS FROM IPYNB ----------------
+# ---------------- ORIGINAL FUNCTIONS ----------------
 def clean_text(text):
     text = text.lower()
     return text.strip()
@@ -27,8 +31,8 @@ def remove_stopwords(text):
     return output
 
 def remove_digits(text):
-    clean_text = re.sub(r"\b[0-9]+\b\s*", "", text)
-    return clean_text
+    clean_text_val = re.sub(r"\b[0-9]+\b\s*", "", text)
+    return clean_text_val
 
 def remove_emojis(data):
     emoji_pattern = re.compile("["
@@ -39,7 +43,7 @@ def remove_emojis(data):
         "]+", flags=re.UNICODE)
     return re.sub(emoji_pattern, '', data)
 
-# ---------------- PIPELINE (SAME LOGIC) ----------------
+# ---------------- PREPROCESS PIPELINE ----------------
 def preprocess_email(text):
     text = clean_text(text)
     text = remove_punctuation(text)
@@ -57,7 +61,7 @@ def get_sentiment_label(value):
     else:
         return "Positive 😊"
 
-# ---------------- CLARITY CHECK (ABSTRACT BASED) ----------------
+# ---------------- CLARITY CHECK ----------------
 def clarity_check(text):
     if len(text.split()) < 6:
         return "Low ❌", "Email is too short and unclear."
@@ -102,13 +106,11 @@ if st.button("Analyze Email"):
         clarity, clarity_msg = clarity_check(email_text)
         advice = suggestion(sentiment)
 
-        # Update stats
         if prediction == -1:
             st.session_state.negative_count += 1
         if clarity.startswith("Low"):
             st.session_state.unclear_count += 1
 
-        # ---------------- OUTPUT ----------------
         st.subheader("🔍 Analysis Result")
         st.write(f"**Sentiment:** {sentiment}")
         st.write(f"**Clarity Level:** {clarity}")
