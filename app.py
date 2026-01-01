@@ -4,7 +4,6 @@ import re
 import nltk
 import string
 
-# ✅ ONLY FIX ADDED (DO NOT REMOVE)
 nltk.download('stopwords')
 nltk.download('punkt')
 
@@ -122,4 +121,5 @@ if st.button("Analyze Email"):
         st.subheader("📊 User Communication Stats")
         st.write(f"😟 Negative Emails: {st.session_state.negative_count}")
         st.write(f"❓ Unclear Emails: {st.session_state.unclear_count}")
+
 
