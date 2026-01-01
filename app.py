@@ -123,5 +123,3 @@ if st.button("Analyze Email"):
         st.write(f"😟 Negative Emails: {st.session_state.negative_count}")
         st.write(f"❓ Unclear Emails: {st.session_state.unclear_count}")
 
-st.markdown("---")
-st.caption("Mini Project | SentiMail | CSE")
