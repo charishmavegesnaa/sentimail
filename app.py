@@ -3,6 +3,7 @@ import pickle
 import re
 import nltk
 import string
+import os
 from nltk.corpus import stopwords
 
 # Download required NLTK data (one-time)
@@ -11,18 +12,29 @@ try:
 except:
     nltk.download('stopwords')
 
-# Load model and vectorizer using YOUR exact filename
+# Load model and vectorizer with error handling
 @st.cache_resource
 def load_model():
-    with open('sentimail_logreg_model.pkl', 'rb') as file:
-        data = pickle.load(file)
-        model = data['model']
-        vectorizer = data['vectorizer']
-    return model, vectorizer
+    model_path = 'sentimail_logreg_model.pkl'
+    if not os.path.exists(model_path):
+        st.error(f"❌ Model file '{model_path}' not found in current folder!")
+        st.info("📁 Put 'sentimail_logreg_model.pkl' in the same folder as app.py")
+        st.stop()
+    
+    try:
+        with open(model_path, 'rb') as file:
+            data = pickle.load(file)
+            model = data['model']
+            vectorizer = data['vectorizer']
+        return model, vectorizer
+    except Exception as e:
+        st.error(f"❌ Error loading model: {str(e)}")
+        st.info("💡 Check if model file is corrupted or keys 'model'/'vectorizer' exist")
+        st.stop()
 
 model, vectorizer = load_model()
 
-# Preprocessing functions (exact from your notebook)
+# Rest of your code (same as before)...
 def clean_text(text):
     text = text.lower()
     return text.strip()
@@ -42,10 +54,10 @@ def remove_digits(text):
 
 def remove_emojis(data):
     emojipattern = re.compile("["
-        u"\U0001F600-\U0001F64F"  # emoticons
-        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-        u"\U0001F680-\U0001F6FF"  # transport & map symbols
-        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        u"\U0001F600-\U0001F64F"
+        u"\U0001F300-\U0001F5FF"
+        u"\U0001F680-\U0001F6FF"
+        u"\U0001F1E0-\U0001F1FF"
                            "]+", flags=re.UNICODE)
     return re.sub(emojipattern, ' ', data)
 
@@ -57,7 +69,6 @@ def preprocess_email(text):
     text = remove_emojis(text)
     return text
 
-# Sentiment label mapping (exact from your notebook)
 def get_sentiment_label(value):
     if value == -1:
         return "Negative 😟"
@@ -66,7 +77,6 @@ def get_sentiment_label(value):
     else:
         return "Positive 🙂"
 
-# Clarity and suggestions
 def clarity_check(text):
     words = len(text.split())
     if words < 6:
@@ -84,7 +94,7 @@ def suggestion(sentiment):
     else:
         return "Your email sounds polite and professional."
 
-# Session state for stats
+# Session state
 if 'negative_count' not in st.session_state:
     st.session_state.negative_count = 0
 if 'unclear_count' not in st.session_state:
@@ -108,7 +118,6 @@ if st.button("Analyze Email"):
         clarity, clarity_msg = clarity_check(email_text)
         advice = suggestion(sentiment)
 
-        # Update stats
         if prediction == -1:
             st.session_state.negative_count += 1
         if clarity.startswith("Low"):
@@ -129,7 +138,6 @@ if st.button("Analyze Email"):
         with col2:
             st.metric("Unclear Emails", st.session_state.unclear_count)
 
-# Reset stats
 if st.button("Reset Stats"):
     st.session_state.negative_count = 0
     st.session_state.unclear_count = 0
